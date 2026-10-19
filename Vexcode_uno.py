@@ -1,18 +1,76 @@
-# ---------------------------------------------------------------------------- #
-#                                                                              #
-#   Project:       VEX EXP UNO Robot (Physical Drive & Pixel Graphics)         #
-#   Module:        main.py                                                     #
-#   Author:        VEXcode EXP                                                 #
-#   Created:       2026                                                        #
-#   Description:   Integrated card rendering graphics, driving privacy screens, #
-#                  and multi-card draw animations.                             #
-#                                                                              #
-# ---------------------------------------------------------------------------- #
-
+# region VEXcode Generated Robot Configuration
 from vex import *
 import urandom
+import math
 
+# Brain should be defined by default
 brain = Brain()
+
+# Robot configuration code
+brain_inertial = Inertial()
+motor_1 = Motor(Ports.PORT1, False)
+motor_5 = Motor(Ports.PORT5, True)
+
+# Wait for sensor(s) to fully initialize
+wait(100, MSEC)
+
+# generating and setting random seed
+def initializeRandomSeed():
+    wait(100, MSEC)
+    xaxis = brain_inertial.acceleration(XAXIS) * 1000
+    yaxis = brain_inertial.acceleration(YAXIS) * 1000
+    zaxis = brain_inertial.acceleration(ZAXIS) * 1000
+    systemTime = brain.timer.system() * 100
+    urandom.seed(int(xaxis + yaxis + zaxis + systemTime)) 
+
+# Initialize random seed 
+initializeRandomSeed()
+
+# endregion VEXcode Generated Robot Configuration
+
+# ------------------------------------------
+#   Project:     VEX EXP UNO Robot
+#   Description: Integrated UNO game with Siren alert ("UNO!"), Victory Sound,
+#                "WINNER!" overlay, and motion-broadcast victory dance.
+# ------------------------------------------
+
+# Create events
+FWD = Event()
+RT = Event()
+LT = Event()
+
+def motor_1_forward():
+    motor_1.spin_for(FORWARD, 425, DEGREES)
+    print("motor 1 FWD 425")
+
+def motor_5move_forward():
+    motor_5.spin_for(FORWARD, 425, DEGREES)
+    print("motor 5 FWD 425")
+
+def motor1_turn_right():
+    motor_1.spin_for(FORWARD, 220, DEGREES)
+    print("motor 1 FWD 220")
+
+def motor5_turn_right():
+    motor_5.spin_for(REVERSE, 220, DEGREES)
+    print("motor 5 Frev 220")
+
+def motor1_turn_left():
+    motor_1.spin_for(REVERSE, 220, DEGREES)
+    print("motor 1 rev 220")
+
+def motor5_turn_left():
+    motor_5.spin_for(FORWARD, 220, DEGREES)
+    print("motor 5 FWD 220")
+
+# Register callback functions to the events
+FWD(motor_1_forward)
+FWD(motor_5move_forward)
+RT(motor1_turn_right)
+RT(motor5_turn_right)
+LT(motor1_turn_left)
+LT(motor5_turn_left)
+wait(15, MSEC)
 
 # --- Custom Hardware-Safe Random Shuffle ---
 def shuffle_list(lst):
@@ -20,8 +78,45 @@ def shuffle_list(lst):
         j = urandom.randint(0, i)
         lst[i], lst[j] = lst[j], lst[i]
 
-# --- Custom Graphical Card Display Function ---
+# --- Sound Effect Functions ---
+def play_siren_sound():
+    """Plays the Siren sound for UNO! (2nd-to-last card)."""
+    try:
+        brain.play_sound(SoundType.SIREN)
+    except Exception:
+        # Fallback pitch-sweep
+        for _ in range(2):
+            brain.play_note(4, 11, 120)
+            wait(120, MSEC)
+            brain.play_note(3, 4, 120)
+            wait(120, MSEC)
 
+def play_victory_sound():
+    """Plays a distinct multi-tone fanfare sound effect for winning."""
+    try:
+        brain.play_sound(SoundType.TADA)
+    except Exception:
+        # Fallback ascending victory chime sequence
+        brain.play_note(3, 1, 150)  # C
+        wait(150, MSEC)
+        brain.play_note(3, 5, 150)  # E
+        wait(150, MSEC)
+        brain.play_note(3, 8, 150)  # G
+        wait(150, MSEC)
+        brain.play_note(4, 1, 400)  # High C
+        wait(400, MSEC)
+
+# --- Motion Broadcast Victory Dance ---
+def perform_victory_dance():
+    """Uses motion broadcasts (RT/LT) to do a small celebration dance."""
+    print("Performing Victory Dance!")
+    for _ in range(2):
+        RT.broadcast_and_wait()
+        wait(100, MSEC)
+        LT.broadcast_and_wait()
+        wait(100, MSEC)
+
+# --- Custom Graphical Card Display Function ---
 def draw_card_full_screen(card_str, color_code):
     brain.screen.clear_screen()
     if color_code == 'R': brain.screen.set_fill_color(Color.RED)
@@ -29,19 +124,18 @@ def draw_card_full_screen(card_str, color_code):
     elif color_code == 'B': brain.screen.set_fill_color(Color.BLUE)
     elif color_code == 'Y': brain.screen.set_fill_color(Color.YELLOW)
     else: brain.screen.set_fill_color(Color.BLACK)
+    
     brain.screen.set_pen_color(Color.WHITE)
     for i in range(5):
         brain.screen.draw_rectangle(0+i, 0+i, 159-(i*2), 107-(i*2))
-   
+    
     card = card_str[1:] if len(card_str) > 1 else card_str
-    if card == "0":
+    if card == "0" or card == "8":
         for i in range(15):
             brain.screen.draw_rectangle(20+i, 20+i, 119-(i*2), 67-(i*2))
-    elif card == "8":
-        for i in range(15):
-            brain.screen.draw_rectangle(20+i, 20+i, 119-(i*2), 67-(i*2))
-        for i in range(15):
-            brain.screen.draw_line(72+i, 20, 72+i, 85)
+        if card == "8":
+            for i in range(15):
+                brain.screen.draw_line(72+i, 20, 72+i, 85)
     elif card == "1":
         for i in range(15):
             brain.screen.draw_line(20, 47+i, 139, 47+i)
@@ -198,10 +292,25 @@ def draw_card_full_screen(card_str, color_code):
             brain.screen.draw_line(75, 50+i+25, 85, 50+i+25)
     brain.screen.set_fill_color(Color.TRANSPARENT)
 
-# --- Argument Mapping Helper ---
+# --- Overlay Graphic Functions ---
+def draw_uno_overlay():
+    """Draws 'UNO!' overlay banner."""
+    brain.screen.set_fill_color(Color.RED)
+    brain.screen.set_pen_color(Color.WHITE)
+    brain.screen.draw_rectangle(20, 25, 120, 55)
+    brain.screen.set_cursor(3, 6)
+    brain.screen.print("UNO!")
 
+def draw_winner_overlay():
+    """Draws 'WINNER!' overlay banner."""
+    brain.screen.set_fill_color(Color.GREEN)
+    brain.screen.set_pen_color(Color.WHITE)
+    brain.screen.draw_rectangle(15, 25, 130, 55)
+    brain.screen.set_cursor(3, 4)
+    brain.screen.print("WINNER!")
+
+# --- Argument Mapping Helper ---
 def get_card_render_args(card_str):
-    """Converts a card string like 'Red 5' into (card_str, color_code)."""
     if "Wild +4" in card_str or card_str == "D4":
         return ("D4", "K")
     elif "Wild" in card_str or card_str == "W":
@@ -221,7 +330,6 @@ def get_card_render_args(card_str):
     return (c_code + val_code, c_code)
 
 # --- Driving & Privacy Routines ---
-
 FORWARD_DIST_UNITS = 2
 TURN_ANGLE_DEGREES = 90
 
@@ -239,7 +347,6 @@ def robot_turn_right(angle=TURN_ANGLE_DEGREES):
     RT.broadcast_and_wait()
 
 def show_privacy_screen(text_msg):
-    """Hides player hand during drive movement."""
     brain.screen.clear_screen()
     brain.screen.set_fill_color(Color.BLACK)
     brain.screen.set_pen_color(Color.WHITE)
@@ -250,17 +357,37 @@ def show_privacy_screen(text_msg):
     brain.screen.set_cursor(4, 1)
     brain.screen.print("================")
 
-def move_to_center_and_discard(played_card):
-    # Hide hand while driving out
-    show_privacy_screen("DRIVING CENTER...")
+def move_to_center_and_discard(played_card, remaining_hand_size=0):
+    c_str, c_code = get_card_render_args(played_card)
+
+    # 1. Check if depositing 2nd-to-last card (UNO!)
+    if remaining_hand_size == 1:
+        draw_card_full_screen(c_str, c_code)
+        draw_uno_overlay()
+        play_siren_sound()
+    # 2. Check if depositing LAST card (WINNER!)
+    elif remaining_hand_size == 0:
+        draw_card_full_screen(c_str, c_code)
+        draw_winner_overlay()
+        play_victory_sound()
+    else:
+        show_privacy_screen("DRIVING CENTER...")
+
+    # Robot drives forward to center
     robot_drive_forward(FORWARD_DIST_UNITS)
     
-    # Display played card full screen at center
-    c_str, c_code = get_card_render_args(played_card)
+    # Display card and overlay at center
     draw_card_full_screen(c_str, c_code)
+    if remaining_hand_size == 1:
+        draw_uno_overlay()
+    elif remaining_hand_size == 0:
+        draw_winner_overlay()
+        # Perform victory dance at center!
+        perform_victory_dance()
+
     wait(2, SECONDS)
     
-    # Hide screen while returning to player
+    # Return to player position
     show_privacy_screen("RETURNING...")
     robot_turn_right(90)
     robot_turn_right(90)
@@ -269,18 +396,15 @@ def move_to_center_and_discard(played_card):
     robot_turn_right(90)
 
 def move_to_center_and_draw(count=1):
-    # Hide hand while driving out
     show_privacy_screen("DRIVING CENTER...")
     robot_drive_forward(FORWARD_DIST_UNITS)
     
-    # Flash card back graphic once for each drawn card
     for i in range(count):
         draw_card_full_screen("BACK", "K")
         wait(800, MSEC)
         brain.screen.clear_screen()
         wait(300, MSEC)
         
-    # Hide screen while returning
     show_privacy_screen("RETURNING...")
     robot_turn_left(90)
     robot_turn_left(90)
@@ -289,7 +413,6 @@ def move_to_center_and_draw(count=1):
     robot_turn_left(90)
 
 # --- Game Deck Setup ---
-
 COLORS = ['Red', 'Yellow', 'Green', 'Blue']
 VALUES = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'Skip', 'Reverse', '+2', '+4']
 
@@ -329,7 +452,6 @@ def shorten_card_name(card_str):
     return res
 
 # --- UI & Hand Display ---
-
 def render_hand_page(hand, header_text, page, total_pages):
     brain.screen.clear_screen()
     brain.screen.set_cursor(1, 1)
@@ -460,7 +582,6 @@ def input_top_card_via_buttons():
         return color + " " + val
 
 # --- Main Physical Game Loop ---
-
 def play_physical_game():
     robot_deck = create_deck()
     shuffle_list(robot_deck)
@@ -497,10 +618,9 @@ def play_physical_game():
             played_card = bot_hand.pop(chosen_idx)
             top_card = played_card
             
-            # Drive out to center and display full-screen card graphic
-            move_to_center_and_discard(played_card)
+            # Move to center and handle UNO! (1 card left) or WINNER! (0 cards left)
+            move_to_center_and_discard(played_card, len(bot_hand))
         else:
-            # Drive out to center and draw card
             move_to_center_and_draw(1)
             drawn = draw_card(robot_deck)
             if drawn:
@@ -510,7 +630,7 @@ def play_physical_game():
                     chosen_idx = choose_card_to_play(bot_hand, playable_indices, top_card)
                     played_card = bot_hand.pop(chosen_idx)
                     top_card = played_card
-                    move_to_center_and_discard(played_card)
+                    move_to_center_and_discard(played_card, len(bot_hand))
             
         if len(bot_hand) == 0:
             break
